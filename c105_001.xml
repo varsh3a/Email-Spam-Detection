@@ -1,0 +1,187 @@
+<TrustFrameworkPolicy xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://schemas.microsoft.com/online/cpim/schemas/2013/06" PolicySchemaVersion="0.3.0.0" TenantId="alphab2ccuat.onmicrosoft.com" PolicyId="B2C_1A_Subdomain_Per_Tenant_Per_IDP_SignUpOrSignin_c105_d3_001" PublicPolicyUri="http://alphab2ccuat.onmicrosoft.com/B2C_1A_Subdomain_Per_Tenant_Per_IDP_SignUpOrSignin_c105_d3_001" DeploymentMode="Production" UserJourneyRecorderEndpoint="urn:journeyrecorder:applicationinsights" TenantObjectId="faacf300-5bd5-4d8d-8020-16e91dc6a871">
+  <BasePolicy>
+    <TenantId>alphab2ccuat.onmicrosoft.com</TenantId>
+    <PolicyId>B2C_1A_SUBDOMAIN_PER_TENANT_PER_IDP_TRUSTFRAMEWORKEXTENSIONS</PolicyId>
+  </BasePolicy>
+  <BuildingBlocks>
+    <ClaimsTransformations>
+      <ClaimsTransformation Id="VerifyAADGroup" TransformationMethod="StringCollectionContains">
+        <InputClaims>
+          <InputClaim ClaimTypeReferenceId="idpGroupMemberships" TransformationClaimType="inputClaim" />
+        </InputClaims>
+        <InputParameters>
+          <!-- This Value is the Azure AD group object ID that users must be a member of in order for this policy to authenticate them. -->
+          <InputParameter Id="item" DataType="string" Value="cba32879-fdd3-411b-8d17-287e3baa6f2b" />
+          <!-- crdops ad group for this tenant access -->
+          <InputParameter Id="ignoreCase" DataType="string" Value="true" />
+        </InputParameters>
+        <OutputClaims>
+          <OutputClaim ClaimTypeReferenceId="isAuthorized" TransformationClaimType="outputClaim" />
+        </OutputClaims>
+      </ClaimsTransformation>
+    </ClaimsTransformations>
+  </BuildingBlocks>
+  <ClaimsProviders>
+    <ClaimsProvider>
+      <DisplayName>Verify Group</DisplayName>
+      <TechnicalProfiles>
+        <TechnicalProfile Id="Validate-Group">
+          <DisplayName>Verify Group</DisplayName>
+          <Protocol Name="Proprietary" Handler="Web.TPEngine.Providers.ClaimsTransformationProtocolProvider, Web.TPEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+          <OutputClaims>
+            <OutputClaim ClaimTypeReferenceId="isAuthorized" />
+          </OutputClaims>
+          <OutputClaimsTransformations>
+            <OutputClaimsTransformation ReferenceId="VerifyAADGroup" />
+          </OutputClaimsTransformations>
+          <UseTechnicalProfileForSessionManagement ReferenceId="SM-SocialLogin" />
+        </TechnicalProfile>
+        <TechnicalProfile Id="isAuthorized-Error">
+          <DisplayName>User not authorized error message</DisplayName>
+          <Protocol Name="Proprietary" Handler="Web.TPEngine.Providers.SelfAssertedAttributeProvider, Web.TPEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+          <Metadata>
+            <Item Key="ContentDefinitionReferenceId">api.selfasserted</Item>
+            <Item Key="setting.showContinueButton">false</Item>
+            <Item Key="setting.showCancelButton">false</Item>
+          </Metadata>
+          <IncludeInSso>false</IncludeInSso>
+          <InputClaims>
+            <InputClaim ClaimTypeReferenceId="errorMessage" DefaultValue="User is not authorized to access this application." />
+          </InputClaims>
+          <OutputClaims>
+            <OutputClaim ClaimTypeReferenceId="errorMessage" DefaultValue="User is not authorized to access this application." />
+          </OutputClaims>
+        </TechnicalProfile>
+      </TechnicalProfiles>
+    </ClaimsProvider>
+    <ClaimsProvider>
+      <Domain>crdops.com</Domain>
+      <DisplayName>Login using Alpha</DisplayName>
+      <TechnicalProfiles>
+        <TechnicalProfile Id="AAD-OIDC">
+          <DisplayName>Alpha User</DisplayName>
+          <Description>Login with your Alpha account</Description>
+          <Protocol Name="OpenIdConnect" />
+          <OutputTokenFormat>JWT</OutputTokenFormat>
+         
+          <CryptographicKeys>
+            <Key Id="client_secret" StorageReferenceId="B2C_1A_c105Secret" />
+            <!-- B2C_1A_c105Secret is crdops -->
+          </CryptographicKeys>
+         
+         
+          <UseTechnicalProfileForSessionManagement ReferenceId="SM-SocialLogin" />
+        </TechnicalProfile>
+      </TechnicalProfiles>
+    </ClaimsProvider>
+  </ClaimsProviders>
+  <UserJourneys>
+    <UserJourney Id="SignUpSignIn">
+      <OrchestrationSteps>
+        <OrchestrationStep Order="1" Type="CombinedSignInAndSignUp" ContentDefinitionReferenceId="api.signuporsignin">
+          <ClaimsProviderSelections>
+            <ClaimsProviderSelection TargetClaimsExchangeId="AzureADExchange" />
+            <!--<ClaimsProviderSelection ValidationClaimsExchangeId="LocalAccountSigninEmailExchange" />-->
+          </ClaimsProviderSelections>
+          <ClaimsExchanges>
+            <!--<ClaimsExchange Id="LocalAccountSigninEmailExchange" TechnicalProfileReferenceId="SelfAsserted-LocalAccountSignin-Email" />-->
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <!-- Check if the user has selected to sign in using one of the social providers -->
+        <OrchestrationStep Order="2" Type="ClaimsExchange">
+          <Preconditions>
+            <Precondition Type="ClaimsExist" ExecuteActionsIf="true">
+              <Value>objectId</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="AzureADExchange" TechnicalProfileReferenceId="AAD-OIDC" />
+            <!--<ClaimsExchange Id="SignUpWithLogonEmailExchange" TechnicalProfileReferenceId="LocalAccountSignUpWithLogonEmail" />-->
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <!-- For social IDP authentication, attempt to find the user account in the directory. -->
+        <OrchestrationStep Order="3" Type="ClaimsExchange">
+          <Preconditions>
+            <Precondition Type="ClaimEquals" ExecuteActionsIf="true">
+              <Value>authenticationSource</Value>
+              <Value>localAccountAuthentication</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="AADUserReadUsingAlternativeSecurityId" TechnicalProfileReferenceId="AAD-UserReadUsingAlternativeSecurityId-NoError" />
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <!-- This step reads any user attributes that we may not have received when authenticating using ESTS so they can be sent           in the token. -->
+        <OrchestrationStep Order="4" Type="ClaimsExchange">
+          <Preconditions>
+            <Precondition Type="ClaimEquals" ExecuteActionsIf="true">
+              <Value>authenticationSource</Value>
+              <Value>socialIdpAuthentication</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="AADUserReadWithObjectId" TechnicalProfileReferenceId="AAD-UserReadUsingObjectId" />
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <!-- The previous step (SelfAsserted-Social) could have been skipped if there were no attributes to collect              from the user. So, in that case, create the user in the directory if one does not already exist              (verified using objectId which would be set from the last step if account was created in the directory. -->
+        <OrchestrationStep Order="5" Type="ClaimsExchange">
+          <Preconditions>
+            <Precondition Type="ClaimsExist" ExecuteActionsIf="true">
+              <Value>objectId</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="AADUserWrite" TechnicalProfileReferenceId="AAD-UserWriteUsingAlternativeSecurityId" />
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <OrchestrationStep Order="6" Type="ClaimsExchange">
+          <Preconditions>
+            <!-- Skip this orchestration step if the idpGroupMemberships claim doesn't exist -->
+            <Precondition Type="ClaimsExist" ExecuteActionsIf="false">
+              <Value>idpGroupMemberships</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="AADUserReadWithObjectId-2" TechnicalProfileReferenceId="Validate-Group" />
+          </ClaimsExchanges>
+        </OrchestrationStep>
+        <OrchestrationStep Order="7" Type="SendClaims" CpimIssuerTechnicalProfileReferenceId="JwtIssuer">
+          <Preconditions>
+            <!-- Skip this orchestration step if isAuthorized is equal to false -->
+            <Precondition Type="ClaimEquals" ExecuteActionsIf="true">
+              <Value>isAuthorized</Value>
+              <Value>false</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+        </OrchestrationStep>
+        <OrchestrationStep Order="8" Type="ClaimsExchange">
+          <Preconditions>
+            <!-- Skip this orchestration step if isAuthorized is equal to true -->
+            <Precondition Type="ClaimEquals" ExecuteActionsIf="true">
+              <Value>isAuthorized</Value>
+              <Value>true</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
+          <ClaimsExchanges>
+            <ClaimsExchange Id="isAuthorizedError" TechnicalProfileReferenceId="isAuthorized-Error" />
+          </ClaimsExchanges>
+        </OrchestrationStep>
+      </OrchestrationSteps>
+      <ClientDefinition ReferenceId="DefaultWeb" />
+    </UserJourney>
+  </UserJourneys>
+  <RelyingParty>
+    <DefaultUserJourney ReferenceId="SignUpSignIn" />
+    <UserJourneyBehaviors>
+      <JourneyInsights TelemetryEngine="ApplicationInsights" InstrumentationKey="4ee5d652-06cc-417c-94cd-0b7271c454ce" DeveloperMode="false" ClientEnabled="false" ServerEnabled="true" TelemetryVersion="1.0.0" />
+    </UserJourneyBehaviors>
+    
+  </RelyingParty>
+</TrustFrameworkPolicy>
